@@ -5,40 +5,44 @@ const mongodb = require("mongodb");
 
 const helper = require("../utils/helper");
 
-class repmdbmgr {
+class mdbmgr {
     constructor() {
+        this._name = "mdbmgr";
         this.urls = "";
         this.replasetname = "";
         this.authinfo = null;
         this.client = {};
     }
-    // urls: [127.0.0.1:10001, 127.0.0.1:10002, ...]
+    // urls: single mongo: 127.0.0.1:10001; replset mongo: 127.0.0.1:10001,127.0.0.1:10002,...
+    // replsetname: replset mode needed.
     // callback(error, client)
     // authinfo: {user:'abcd', password:'123456', authMechanism:'DEFAULT', authSource:'admin'}
     // authMechanism: DEFAULT, SCRAM-SHA-1, MONGODB-CR, X509, ...
     init(urls, replsetname, callback, authinfo) {
-        helper.log("[repdbmgr:init] (",urls+",",replsetname+",","callback,",authinfo,") >>>>>");
+        helper.log("["+this._name+":init] (",urls+",",replsetname+",","callback,",authinfo,") >>>>>");
 
         let s = "mongodb://";
         if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.user) && false==helper.isNullOrUndefined(authinfo.password)) {
             s += (encodeURIComponent(authinfo.user) + ":" + encodeURIComponent(authinfo.password) + "@");
         }
-        s += (urls.join()+"/");
-        s += ("?replicaSet=" + replsetname);
+        s += (urls+"/?");
+        if (false == helper.isNullOrUndefined(replsetname) && replsetname.length > 0) {
+            s += ("&replicaSet=" + replsetname);
+        }
         if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.authMechanism)) {
             s += ("&authMechanism=" + authinfo.authMechanism);
         }
         if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.authSource)) {
             s += ("&authSource=" + authinfo.authSource);
         }
-        helper.log("[repdbmgr:init] s:", s);
+        helper.log("["+this._name+":init] s:", s);
 
         mongodb.MongoClient.connect(s, (e_con, r_con)=>{
             if (e_con) {
-                helper.logRed("[repdbmgr:init] e_con:", e_con.message);
+                helper.logRed("["+this._name+":init] e_con:", e_con.message);
                 callback(e_con);
             } else {
-                helper.logGreen("[repdbmgr:init] r_con:", r_con);
+                helper.logGreen("["+this._name+":init] r_con:", r_con);
                 this.urls = urls;
                 this.replsetname = replsetname;
                 this.authinfo = authinfo;
@@ -46,22 +50,22 @@ class repmdbmgr {
 
                 this.client.db('admin').admin().listDatabases((e_adm,r_adm)=>{
                     if (e_adm) {
-                        helper.logRed("[repdbmgr:init] e_adm:", e_adm.message);
+                        helper.logRed("["+this._name+":init] e_adm:", e_adm.message);
                     } else {
-                        helper.log("[repdbmgr:init] r_adm:", r_adm);
+                        helper.log("["+this._name+":init] r_adm:", r_adm);
                         r_adm.databases.forEach((d)=>{
                             //this.client.db(d.name).collections((e_cols,r_cols)=>{
                             //    if (e_cols) {
-                            //        helper.logRed("[repdbmgr:init]", d.name, "e_cols:", e_cols.message);
+                            //        helper.logRed("["+this._name+":init]", d.name, "e_cols:", e_cols.message);
                             //    } else {
-                            //        helper.log("[repdbmgr:init]", d.name, "r_cols:", r_cols.length);
+                            //        helper.log("["+this._name+":init]", d.name, "r_cols:", r_cols.length);
                             //    }
                             //});
                             this.client.db(d.name).listCollections().toArray((e_lstc,r_lstc)=>{
                                 if (e_lstc) {
-                                    helper.logRed("[repdbmgr:init]", d.name, "e_lstc:", e_lstc.message);
+                                    helper.logRed("["+this._name+":init]", d.name, "e_lstc:", e_lstc.message);
                                 } else {
-                                    helper.log("[repdbmgr:init]", d.name, "r_lstc:", r_lstc.length);
+                                    helper.log("["+this._name+":init]", d.name, "r_lstc:", r_lstc.length);
                                 }
                             });
                         })
@@ -74,18 +78,18 @@ class repmdbmgr {
     }
     // callback(error, collections)
     collections(dbname, callback) {
-        helper.log("[repdbmgr:collections] (",dbname+",","callback) >>>>>");
+        helper.log("["+this._name+":collections] (",dbname+",","callback) >>>>>");
 
         if (helper.isNullOrUndefined(this.client)) {
-            helper.logRed("[repdbmgr:collections] client(",this.urls,") is null.");
+            helper.logRed("["+this._name+":collections] client(",this.urls,") is null.");
             callback(new Error("client("+this.urls+") is null."));
         } else if (helper.isNullOrUndefined(this.client.db(dbname))) {
-            helper.logRed("[repdbmgr:collections] db(",this.urls,dbname,") is null.");
+            helper.logRed("["+this._name+":collections] db(",this.urls,dbname,") is null.");
             callback(new Error("db("+this.urls+"/"+dbname+") is null."));
         } else {
             this.client.db(dbname).collections((e_cols, r_cols)=>{
                 if (e_cols) {
-                    helper.logRed("[repdbmgr:collections] db(",this.urls,dbname,").collections() e_cols:", e_cols.message);
+                    helper.logRed("["+this._name+":collections] db(",this.urls,dbname,").collections() e_cols:", e_cols.message);
                     callback(e_cols);
                 } else {
                     callback(null, r_cols);
@@ -95,18 +99,18 @@ class repmdbmgr {
     }
     // callback(error, documents)
     find(dbname, colname, findobj, keyobj, sortobj, skipnum, limitnum, callback) {
-        helper.log("[repdbmgr:find] (",dbname+",",colname+",",JSON.stringify(findobj)+",",JSON.stringify(keyobj)+",",(helper.isNullOrUndefined(sortobj)?"null":JSON.stringify(sortobj))+",",skipnum+",",limitnum+",","callback) >>>>>");
+        helper.log("["+this._name+":find] (",dbname+",",colname+",",JSON.stringify(findobj)+",",JSON.stringify(keyobj)+",",(helper.isNullOrUndefined(sortobj)?"null":JSON.stringify(sortobj))+",",skipnum+",",limitnum+",","callback) >>>>>");
 
         if (helper.isNullOrUndefined(this.client)) {
-            helper.logRed("[repdbmgr:collections] client(",this.urls,") is null.");
+            helper.logRed("["+this._name+":collections] client(",this.urls,") is null.");
             callback(new Error("client("+this.urls+") is null."));
         } else if (helper.isNullOrUndefined(this.client.db(dbname))) {
-            helper.logRed("[repdbmgr:collections] db(",this.urls,dbname,") is null.");
+            helper.logRed("["+this._name+":collections] db(",this.urls,dbname,") is null.");
             callback(new Error("db("+this.urls+"/"+dbname+") is null."));
         } else {
             this.client.db(dbname).collection(colname, {safe:true}, (e_col, r_col)=>{
                 if (e_col) {
-                    helper.logRed("[repdbmgr:find] db(",this.urls,dbname,").collection(",colname,") e_col:", e_col.message);
+                    helper.logRed("["+this._name+":find] db(",this.urls,dbname,").collection(",colname,") e_col:", e_col.message);
                     callback(e_col);
                 } else {
                     let f = r_col.find(findobj, keyobj);
@@ -121,10 +125,10 @@ class repmdbmgr {
                     }
                     f.toArray((e_find,r_find)=>{
                         if (e_find) {
-                            helper.logRed("[repdbmgr:find] col(",this.urls,dbname,colname,").find(...) e_find:", e_find.message);
+                            helper.logRed("["+this._name+":find] col(",this.urls,dbname,colname,").find(...) e_find:", e_find.message);
                             callback(e_find);
                         } else {
-                            helper.logGreen("[repdbmgr:find] col(",this.urls,dbname,colname,").find(...) r_find:", r_find.length);
+                            helper.logGreen("["+this._name+":find] col(",this.urls,dbname,colname,").find(...) r_find:", r_find.length);
                             callback(null, r_find);
                         }
                     });
@@ -133,7 +137,7 @@ class repmdbmgr {
         }
     }
     getDb(dbname) {
-        helper.log("[repdbmgr:getDb] (",this.urls+",",dbname+",",") >>>>>");
+        helper.log("["+this._name+":getDb] (",this.urls+",",dbname+",",") >>>>>");
         if (helper.isNullOrUndefined(this.client)) {
             return null;
         } else {
@@ -142,4 +146,4 @@ class repmdbmgr {
     }
 }
 
-module.exports = repmdbmgr;
+module.exports = mdbmgr;
