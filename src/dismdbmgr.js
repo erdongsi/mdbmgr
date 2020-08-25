@@ -217,6 +217,7 @@ class dismdbmgr {
         for (let u in this.db_clients) {
             if (helper.isNullOrUndefined(this.db_clients[u])) {
                 this.db_clients[u].close();
+                delete this.db_clients[u];
             }
         }
         this.db_clients = {};
