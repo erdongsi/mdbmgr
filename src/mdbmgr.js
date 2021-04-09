@@ -1,7 +1,7 @@
 ﻿// 支持 replset 副本集群 mongodb 服务
 // 暂时只支持 find 功能
 
-const mongodb = require("mongodb");
+const mongodb = require("../../npm.mongodb/node_modules/mongodb/index.js");
 
 const helper = require("../utils/helper");
 
@@ -11,7 +11,7 @@ class mdbmgr {
         this.urls = "";
         this.replasetname = "";
         this.authinfo = null;
-        this.client = {};
+        this.client = null;
     }
     // urls: single mongo: 127.0.0.1:10001; replset mongo: 127.0.0.1:10001,127.0.0.1:10002,...
     // replsetname: replset mode needed.
@@ -35,18 +35,38 @@ class mdbmgr {
         if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.authSource)) {
             s += ("&authSource=" + authinfo.authSource);
         }
+        s += "&connectTimeoutMS=10000";
+        s += "&keepAlive=true"
+        s += "&keepAliveInitialDelay=30000"
+        s += "&noDelay=true"
+        s += "&socketTimeoutMS=30000" // 360 s change to 30 s
+        s += "&readPreference=secondaryPreferred";
+        //s += "&slaveOk=true";
         helper.log("["+this._name+":init] s:", s);
-
-        mongodb.MongoClient.connect(s, (e_con, r_con)=>{
+        let client = new mongodb.MongoClient(s, {
+                    autoReconnect: true,
+                    //noDelay: true,
+                    //keepAlive: true,
+                    //keepAliveInitialDelay: 120000,
+                    //connectTimeoutMS: 120000,
+                    //socketTimeoutMS: 0,
+                    reconnectTries: 30,
+                    reconnectInterval: 1000,
+                    connectWithNoPrimary: false,
+                    auto_reconnect: true,
+                    //useUnifiedTopology: true,
+                    useNewUrlParser: true
+        });
+        client.connect(s, (e_con)=>{
             if (e_con) {
                 helper.logRed("["+this._name+":init] e_con:", e_con.message);
                 callback(e_con);
             } else {
-                helper.logGreen("["+this._name+":init] r_con:", r_con);
+                helper.logGreen("["+this._name+":init] client:", client);
                 this.urls = urls;
                 this.replsetname = replsetname;
                 this.authinfo = authinfo;
-                this.client = r_con;
+                this.client = client;
 
                 this.client.db('admin').admin().listDatabases((e_adm,r_adm)=>{
                     if (e_adm) {
@@ -72,7 +92,7 @@ class mdbmgr {
                     }
                 });
 
-                callback(null, r_con);
+                callback(null, client);
             }
         });
     }
@@ -123,6 +143,8 @@ class mdbmgr {
                     if (false == helper.isNullOrUndefined(limitnum)) {
                         f = f.limit(limitnum);
                     }
+                    f.maxTimeMs(10000);
+                    f.batchSize(1000);
                     f.toArray((e_find,r_find)=>{
                         if (e_find) {
                             helper.logRed("["+this._name+":find] col(",this.urls,dbname,colname,").find(...) e_find:", e_find.message);
@@ -142,6 +164,16 @@ class mdbmgr {
             return null;
         } else {
             return this.client.db(dbname);
+        }
+    }
+    makeObjectId(string) {
+        return mongodb.ObjectID(string);
+    }
+    close () {
+        helper.log("[disdbmgr:close] () >>>>>");
+        if (false == helper.isNullOrUndefined(this.client)) {
+            this.client.close(true);
+            this.client = null;
         }
     }
 }
