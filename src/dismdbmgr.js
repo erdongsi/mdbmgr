@@ -16,50 +16,62 @@ class dismdbmgr {
     // authinfo: {user:'abcd', password:'123456', authMechanism:'DEFAULT', authSource:'admindb'}
     // authMechanism: DEFAULT, SCRAM-SHA-1, MONGODB-CR, X509, ...
     init(urls, callback, authinfo) {
-        helper.log("[disdbmgr:init] (",urls+",","callback,",authinfo,") >>>>>");
+        helper.log("[dismdbmgr:init] (",urls+",","callback,",authinfo,") >>>>>");
 
         let pms = [];
         urls.forEach((u)=>{
             pms.push(new Promise((resolve,reject)=>{
                 let s = "mongodb://";
-                if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.user) && false==helper.isNullOrUndefined(authinfo.password)) {
-                    s += (encodeURIComponent(authinfo.user) + ":" + encodeURIComponent(authinfo.password) + "@");
-                }
+                //if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.user) && false==helper.isNullOrUndefined(authinfo.password)) {
+                //    s += (encodeURIComponent(authinfo.user) + ":" + encodeURIComponent(authinfo.password) + "@");
+                //}
                 s += (u+"/?");
-                if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.authMechanism)) {
-                    s += ("&authMechanism=" + authinfo.authMechanism);
-                }
-                if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.authSource)) {
-                    s += ("&authSource=" + authinfo.authSource);
-                }
-                s += "&connectTimeoutMS=10000";
-                s += "&keepAlive=true"
-                s += "&keepAliveInitialDelay=30000"
-                s += "&noDelay=true"
-                s += "&socketTimeoutMS=30000" // 360 s change to 30 s
+                //if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.authMechanism)) {
+                //    s += ("&authMechanism=" + authinfo.authMechanism);
+                //}
+                //if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.authSource)) {
+                //    s += ("&authSource=" + authinfo.authSource);
+                //}
+                //s += "&connectTimeoutMS=10000";
+                //s += "&keepAlive=true"
+                //s += "&keepAliveInitialDelay=30000"
+                //s += "&noDelay=true"
+                //s += "&socketTimeoutMS=30000" // 360 s change to 30 s
                 s += "&readPreference=secondaryPreferred";
                 //s += "&slaveOk=true";
-                helper.log("[disdbmgr:init] s:", s);
-                let client = new mongodb.MongoClient(s, {
-                    autoReconnect: true,
-                    //noDelay: true,
-                    //keepAlive: true,
-                    //keepAliveInitialDelay: 120000,
-                    //connectTimeoutMS: 120000,
-                    //socketTimeoutMS: 0,
-                    reconnectTries: 30,
-                    reconnectInterval: 1000,
+                helper.log("[dismdbmgr:init] s:", s);
+                let option = {
+                    //autoReconnect: true,
+                    noDelay: true,
+                    keepAlive: true,
+                    keepAliveInitialDelay: 30000,
+                    connectTimeoutMS: 30000,
+                    socketTimeoutMS: 30000,
+                    //readPreference: 'SECONDARY_PREFERRED',
+                    //reconnectTries: 30,
+                    //reconnectInterval: 1000,
                     connectWithNoPrimary: false,
                     auto_reconnect: true,
-                    //useUnifiedTopology: true,
+                    useUnifiedTopology: true,
                     useNewUrlParser: true
-                });
+                }
+                if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.user) && false==helper.isNullOrUndefined(authinfo.password)) {
+                    option.auth = {user:authinfo.user, password:authinfo.password};
+                }
+                if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.authMechanism)) {
+                    option.authMechanism = authinfo.authMechanism;
+                }
+                if (false==helper.isNullOrUndefined(authinfo) && false==helper.isNullOrUndefined(authinfo.authSource)) {
+                    option.authSource = authinfo.authSource;
+                }
+                helper.log("[dismdbmgr:init] option:", option);
+                let client = new mongodb.MongoClient(s, option);
                 client.connect((e_con)=>{
                     if (e_con) {
-                        helper.logRed("[disdbmgr:init] e_con:", e_con.message);
+                        helper.logRed("[dismdbmgr:init] e_con:", e_con.message);
                         reject(e_con);
                     } else {
-                        helper.log("[disdbmgr:init] client.connect success.");
+                        helper.log("[dismdbmgr:init] client.connect success.");
                         resolve({u, c:client});
                     }
                 });
@@ -72,22 +84,22 @@ class dismdbmgr {
 
                 this.db_clients[r.u].db('admin').admin().listDatabases((e_adm,r_adm)=>{
                     if (e_adm) {
-                        helper.logRed("[disdbmgr:init] e_adm:", e_adm.message);
+                        helper.logRed("[dismdbmgr:init] e_adm:", e_adm.message);
                     } else {
-                        //helper.log("[disdbmgr:init] r_adm:", r_adm);
+                        //helper.log("[dismdbmgr:init] r_adm:", r_adm);
                         r_adm.databases.forEach((d)=>{
                             //this.db_clients[r.u].db(d.name).collections((e_cols,r_cols)=>{
                             //    if (e_cols) {
-                            //        helper.logRed("[disdbmgr:init]", d.name, "e_cols:", e_cols.message);
+                            //        helper.logRed("[dismdbmgr:init]", d.name, "e_cols:", e_cols.message);
                             //    } else {
-                            //        helper.log("[disdbmgr:init]", d.name, "r_cols:", r_cols.length);
+                            //        helper.log("[dismdbmgr:init]", d.name, "r_cols:", r_cols.length);
                             //    }
                             //});
                             this.db_clients[r.u].db(d.name).listCollections().toArray((e_lstc,r_lstc)=>{
                                 if (e_lstc) {
-                                    helper.logRed("[disdbmgr:init]", d.name, "e_lstc:", e_lstc.message);
+                                    helper.logRed("[dismdbmgr:init]", d.name, "e_lstc:", e_lstc.message);
                                 } else {
-                                    helper.log("[disdbmgr:init]", d.name, "r_lstc:", r_lstc.length);
+                                    helper.log("[dismdbmgr:init]", d.name, "r_lstc:", r_lstc.length);
                                 }
                             });
                         })
@@ -96,13 +108,13 @@ class dismdbmgr {
             });
             callback(null, rs);
         }).catch(e=>{
-            helper.logRed("[disdbmgr:init] e:", e.message);
+            helper.logRed("[dismdbmgr:init] e:", e.message);
             callback(e);
         });
     }
     // callback(error, collections)
     collections(urls, dbname, callback) {
-        helper.log("[disdbmgr:collections] (",urls+",",dbname+",","callback) >>>>>");
+        helper.log("[dismdbmgr:collections] (",urls+",",dbname+",","callback) >>>>>");
 
         if (helper.isNullOrUndefined(urls)) {
             urls = [];
@@ -113,22 +125,22 @@ class dismdbmgr {
         urls.forEach((u)=> {
             pms.push(new Promise((resolve,reject)=>{
                 if (helper.isNullOrUndefined(this.db_clients[u])) {
-                    helper.logRed("[disdbmgr:collections] client(",u,") is null.");
+                    helper.logRed("[dismdbmgr:collections] client(",u,") is null.");
                     reject(new Error("client("+u+") is null."));
                 } else if (helper.isNullOrUndefined(this.db_clients[u].db(dbname))) {
-                    helper.logYellow("[disdbmgr:collections] db(",u,dbname,") is null.");
+                    helper.logYellow("[dismdbmgr:collections] db(",u,dbname,") is null.");
                     resolve([]);
                 } else {
                     if (false == this.db_clients[u].isConnected()) {
-                        //helper.logRed("[disdbmgr:collections] this.db_clients[",u,"] is connected:", this.db_clients[u].isConnected());
+                        //helper.logRed("[dismdbmgr:collections] this.db_clients[",u,"] is connected:", this.db_clients[u].isConnected());
                         reject(new Error("client("+u+") is disconnected."));
                     } else {
                         this.db_clients[u].db(dbname).collections((e_cols, r_cols)=>{
                             if (e_cols) {
-                                helper.logRed("[disdbmgr:collections] db(",u,dbname,").collections() e_cols:", e_cols.message);
+                                helper.logRed("[dismdbmgr:collections] db(",u,dbname,").collections() e_cols:", e_cols.message);
                                 reject(e_cols);
                             } else {
-                                helper.log("[disdbmgr:collections] get collections done.");
+                                helper.log("[dismdbmgr:collections] get collections done.");
                                 resolve(r_cols);
                             }
                         });
@@ -145,13 +157,13 @@ class dismdbmgr {
             setTimeout(()=>{ callback(null, res); }, 1);
 
         }).catch(e=>{
-            helper.logRed("[disdbmgr:collections] e:", e.message);
+            helper.logRed("[dismdbmgr:collections] e:", e.message);
             callback(e);
         });
     }
     // callback(error, documents)
     find(urls, dbs, colname, findobj, keyobj, sortobj, skipnum, limitnum, callback) {
-        helper.log("[disdbmgr:find] (",urls+",",dbs+",",colname+",",JSON.stringify(findobj)+",",JSON.stringify(keyobj)+",",(helper.isNullOrUndefined(sortobj)?"null":JSON.stringify(sortobj))+",",skipnum+",",limitnum+",","callback) >>>>>");
+        helper.log("[dismdbmgr:find] (",urls+",",dbs+",",colname+",",JSON.stringify(findobj)+",",JSON.stringify(keyobj)+",",(helper.isNullOrUndefined(sortobj)?"null":JSON.stringify(sortobj))+",",skipnum+",",limitnum+",","callback) >>>>>");
 
         if (helper.isNullOrUndefined(urls)) {
             urls = [];
@@ -163,20 +175,20 @@ class dismdbmgr {
             dbs.split(',').forEach((dbname)=>{
                 pms.push(new Promise((resolve,reject)=>{
                     if (helper.isNullOrUndefined(this.db_clients[u])) {
-                        helper.logRed("[disdbmgr:find] client(",u,") is null.");
+                        helper.logRed("[dismdbmgr:find] client(",u,") is null.");
                         reject(new Error("client("+u+") is null."));
                     } else if (helper.isNullOrUndefined(this.db_clients[u].db(dbname))) {
                         //helper.logGreen(this.db_clients[u]);
-                        helper.logYellow("[disdbmgr:find] db(",u,dbname,") is null.");
+                        helper.logYellow("[dismdbmgr:find] db(",u,dbname,") is null.");
                         resolve([]);
                     } else {
                         if (false == this.db_clients[u].isConnected()) {
-                            //helper.logRed("[disdbmgr:find] this.db_clients[",u,"] is connected:", this.db_clients[u].isConnected());
+                            //helper.logRed("[dismdbmgr:find] this.db_clients[",u,"] is connected:", this.db_clients[u].isConnected());
                             reject(new Error("client("+u+") is disconnected."));
                         } else {
                             this.db_clients[u].db(dbname).collection(colname, {safe:true}, async (e_col, r_col)=>{
                                 if (e_col) {
-                                    helper.logRed("[disdbmgr:find] db(",u,dbname,").collection(",colname,") e_col:", e_col.message);
+                                    helper.logRed("[dismdbmgr:find] db(",u,dbname,").collection(",colname,") e_col:", e_col.message);
                                     reject(e_col);
                                 } else {
                                     if (false) {
@@ -196,11 +208,11 @@ class dismdbmgr {
                                         if (false == helper.isNullOrUndefined(limitnum)) {
                                             opt.limit = limitnum;
                                         }
-                                        //helper.log("[disdbmgr:find] opt:", opt);
+                                        //helper.log("[dismdbmgr:find] opt:", opt);
                                         let ef = r_col.find(findobj, opt);
                                         //helper.log("ef id:", ef);
                                         ef = await ef.explain();
-                                        helper.log("[disdbmgr:find] ef:", ef);
+                                        helper.log("[dismdbmgr:find] ef:", ef);
                                     }
 
                                     let f = r_col.find(findobj, keyobj);
@@ -220,10 +232,10 @@ class dismdbmgr {
                                     f.batchSize(1000);
                                     f.toArray((e_find,r_find)=>{
                                         if (e_find) {
-                                            helper.logRed("[disdbmgr:find] col(",u,dbname,colname,").find(...) e_find:", e_find.message);
+                                            helper.logRed("[dismdbmgr:find] col(",u,dbname,colname,").find(...) e_find:", e_find.message);
                                             reject(e_find);
                                         } else {
-                                            helper.logGreen("[disdbmgr:find] col(",u,dbname,colname,").find(...) r_find:", r_find.length);
+                                            helper.logGreen("[dismdbmgr:find] col(",u,dbname,colname,").find(...) r_find:", r_find.length);
                                             resolve(r_find);
                                         }
                                     });
@@ -233,18 +245,18 @@ class dismdbmgr {
                                         r_cols.push(r_each);
                                     }, (e_each)=>{
                                         if (e_each) {
-                                            helper.logRed("[disdbmgr:find] col(",u,dbname,colname,").find(...) e_each:", e_each.message);
+                                            helper.logRed("[dismdbmgr:find] col(",u,dbname,colname,").find(...) e_each:", e_each.message);
                                             reject(e1);
                                         } else {
-                                            helper.logGreen("[disdbmgr:find] col(",u,dbname,colname,").find(...) r_cols:", r_cols.length);
+                                            helper.logGreen("[dismdbmgr:find] col(",u,dbname,colname,").find(...) r_cols:", r_cols.length);
                                             resolve(r_cols);
                                         }
                                     });*/
                                     //let r_find = await f.toArray().catch(e_find=>{
-                                    //    helper.logRed("[disdbmgr:find] col(",u,dbname,colname,").find(...) e_find:", e_find.message);
+                                    //    helper.logRed("[dismdbmgr:find] col(",u,dbname,colname,").find(...) e_find:", e_find.message);
                                     //    reject(e_find);
                                     //});
-                                    //helper.logGreen("[disdbmgr:find] col(",u,dbname,colname,").find(...) r_find:", r_find.length);
+                                    //helper.logGreen("[dismdbmgr:find] col(",u,dbname,colname,").find(...) r_find:", r_find.length);
                                     //if (false == helper.isNullOrUndefined(r_find)) {
                                     //    resolve(r_find);
                                     //}
@@ -267,7 +279,7 @@ class dismdbmgr {
                 }));
             });
         });
-        helper.log("[disdbmgr:find] pms:", pms.length);
+        helper.log("[dismdbmgr:find] pms:", pms.length);
         Promise.all(pms).then(rs=>{
             let res = [];
             rs.forEach((r)=>{
@@ -277,12 +289,12 @@ class dismdbmgr {
             callback(null, res);
 
         }).catch(e=>{
-            helper.logRed("[disdbmgr:find] e:", e.message);
+            helper.logRed("[dismdbmgr:find] e:", e.message);
             callback(e);
         });
     }
     getDb(url, dbname) {
-        //helper.log("[disdbmgr:getDb] (",url+",",dbname+",",") >>>>>");
+        //helper.log("[dismdbmgr:getDb] (",url+",",dbname+",",") >>>>>");
         if (helper.isNullOrUndefined(this.db_clients[url])) {
             return null;
         } else {
@@ -293,7 +305,7 @@ class dismdbmgr {
         return mongodb.ObjectID(string);
     }
     close () {
-        helper.log("[disdbmgr:close] () >>>>>");
+        helper.log("[dismdbmgr:close] () >>>>>");
         for (let u in this.db_clients) {
             if (false == helper.isNullOrUndefined(this.db_clients[u])) {
                 this.db_clients[u].close(true);
